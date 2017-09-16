@@ -3,11 +3,8 @@ package com.rebirthstudio.sergit;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
 import android.text.TextUtils;
-import android.widget.ProgressBar;
-import android.widget.Toast;
+import android.util.Log;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -31,37 +28,33 @@ public class GitterConnection {
 
     private Context context;
     private URL gitterURL;
-    private HashMap<String, Bitmap> gitterData = new HashMap<String, Bitmap>();
+    private HashMap<String, HashMap<Bitmap, String>> gitterData = new HashMap<String, HashMap<Bitmap, String>>();
     private String gitterResponse;
 
     public GitterConnection(Context c){
         context = c;
     }
 
-    public HashMap<String, Bitmap> getGitterData(){
+    public HashMap<String, HashMap<Bitmap, String>> getGitterData(){
         return gitterData;
     }
 
-    public void createURL(String url){
+    public Boolean createURL(String url){
         try{
             gitterURL = new URL(url);
+            return true;
         }
         catch (MalformedURLException exception){
-            Toast.makeText(context, "Wrong URL", Toast.LENGTH_SHORT).show();
+            return false;
         }
     }
 
-    public void connect() throws IOException{
+    public Boolean connect() throws IOException{
         InputStream inputStream = null;
         HttpURLConnection gitterURLConnection = null;
 
         if(gitterURL == null){
-            return;
-        }
-
-        if(!checkConnection()){
-            ProgressBar spinner;
-            spinner = (ProgressBar) context.findViewById(R.id.indeterminateBar);
+            return false;
         }
 
         try {
@@ -73,14 +66,14 @@ public class GitterConnection {
 
             if(gitterURLConnection.getResponseCode() == 200) {
                 inputStream = gitterURLConnection.getInputStream();
-                read(inputStream);
+                return read(inputStream);
             }
             else{
-                Toast.makeText(context, "Not getting the right response", Toast.LENGTH_SHORT).show();
+                return false;
             }
         }
         catch (IOException exception){
-            Toast.makeText(context, "Connection Error", Toast.LENGTH_SHORT).show();
+            return false;
         }
         finally {
             if(gitterURLConnection != null){
@@ -89,13 +82,16 @@ public class GitterConnection {
             if(inputStream != null){
                 inputStream.close();
             }
+            return true;
         }
     }
 
-    private void read(InputStream inputStream) throws IOException {
-        StringBuilder output = new StringBuilder();
+    private Boolean read(InputStream inputStream) throws IOException {
+
 
         if(inputStream != null){
+            StringBuilder output = new StringBuilder();
+
             InputStreamReader inputStreamReader = new InputStreamReader(inputStream, Charset.forName("UTF-8"));
             BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
             String line = bufferedReader.readLine();
@@ -103,15 +99,19 @@ public class GitterConnection {
                 output.append(line);
                 line = bufferedReader.readLine();
             }
+
+            gitterResponse = output.toString();
+            return formatGitterData();
+        }else{
+            return false;
         }
 
-        gitterResponse = output.toString();
-        formatGitterData();
+
     }
 
-    private void formatGitterData(){
+    private Boolean formatGitterData(){
         if(TextUtils.isEmpty(gitterResponse)){
-            Toast.makeText(context, "Wrong data received", Toast.LENGTH_SHORT).show();
+            return false;
         }
 
         try {
@@ -122,11 +122,15 @@ public class GitterConnection {
                 JSONObject gitterUserJSONObject = gitterJSONArray.getJSONObject(i);
                 InputStream imageInputStream = getImageInputStream(gitterUserJSONObject.getString("avatar_url"));
                 Bitmap bmp = BitmapFactory.decodeStream(imageInputStream);
-                gitterData.put(gitterUserJSONObject.getString("login"), bmp);
+                HashMap<Bitmap, String> map = new HashMap<Bitmap, String>();
+                map.put(bmp, gitterUserJSONObject.getString("html_url"));
+                gitterData.put(gitterUserJSONObject.getString("login"), map);
             }
+
+            return true;
         }
         catch (JSONException e){
-            Toast.makeText(context, "Error Parsing JSON data", Toast.LENGTH_SHORT).show();
+            return false;
         }
     }
 
@@ -136,24 +140,14 @@ public class GitterConnection {
         try {
             imageUrl = new URL(avatarUrl);
         } catch (MalformedURLException e) {
-            Toast.makeText(context, "Wrong URL for avatar", Toast.LENGTH_SHORT).show();
+
         }
         try {
             imageInputStream = imageUrl.openConnection().getInputStream();
         } catch (IOException e) {
-            Toast.makeText(context, "Error getting the picture stream", Toast.LENGTH_SHORT).show();
+
         }
         return imageInputStream;
     }
 
-    private Boolean checkConnection(){
-        ConnectivityManager connectivityManager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
-        NetworkInfo networkInfo = connectivityManager.getActiveNetworkInfo();
-        if(networkInfo != null && networkInfo.isConnected()){
-            return true;
-        }
-        else{
-            return false;
-        }
-    }
 }

@@ -15,7 +15,7 @@ import java.util.Map;
 
 public class GitterPresenter {
     private GitterConnection gitterConnection;
-    private HashMap<String, Bitmap> gitterData = new HashMap<String, Bitmap>();
+    private HashMap<String, HashMap<Bitmap, String>> gitterData = new HashMap<String, HashMap<Bitmap, String>>();
     private ArrayList<Gitter> gitters = new ArrayList<Gitter>();
     private Context context;
     private String githubURL = "https://api.github.com/search/users?q=location:nigeria";
@@ -24,32 +24,43 @@ public class GitterPresenter {
         context = c;
     };
 
-    public void initialize(){
+    public Boolean initialize(){
         gitterConnection = new GitterConnection(context);
-        gitterConnection.createURL(githubURL);
-        try {
-            gitterConnection.connect();
-        } catch (IOException e) {
-            Toast.makeText(context, "Unable to connect", Toast.LENGTH_LONG).show();
+        if(gitterConnection.createURL(githubURL)) {
+            try {
+                if(gitterConnection.connect()){
+                    gitterData = gitterConnection.getGitterData();
+                    return true;
+                }
+                else{
+                    return false;
+                }
+            } catch (IOException e) {
+                return false;
+            }
         }
-
-        gitterData = gitterConnection.getGitterData();
-
-        processData();
+        else{
+            return false;
+        }
     }
 
     public ArrayList<Gitter> getGitters(){
         return gitters;
     }
 
-    private void processData(){
+    public Boolean processData(){
         if(gitterData.isEmpty()) {
-            Toast.makeText(context, "No Gitters Found", Toast.LENGTH_LONG).show();
+            return false;
         }
         else{
-            for(Map.Entry<String, Bitmap> pair: gitterData.entrySet()){
-                gitters.add(new Gitter(pair.getKey(), pair.getValue()));
+            for(Map.Entry<String, HashMap<Bitmap, String>> pair: gitterData.entrySet()){
+                String username = pair.getKey();
+                HashMap.Entry<Bitmap, String> value = pair.getValue().entrySet().iterator().next();
+                Bitmap avatar = value.getKey();
+                String url = value.getValue();
+                gitters.add(new Gitter(username, avatar, url));
             }
+            return true;
         }
     }
 }
